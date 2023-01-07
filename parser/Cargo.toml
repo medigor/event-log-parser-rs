@@ -1,0 +1,9 @@
+[package]
+name = "event-log-parser"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = "1.1"
+chrono = "0.4"
+once_cell = "1.13"

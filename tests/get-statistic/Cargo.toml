@@ -1,0 +1,7 @@
+[package]
+name = "get-statistic"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+event-log-parser = { path = "../../parser" }

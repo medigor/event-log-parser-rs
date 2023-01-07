@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+  "parser",
+  "tests/parse-events",
+  "tests/parse-references",
+  "tests/get-statistic",
+]
+
+[profile.bench]
+debug = true
