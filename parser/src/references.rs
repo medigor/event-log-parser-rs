@@ -142,51 +142,51 @@ impl References {
             1 => {
                 let id = parser.parse_uuid()?;
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 let user = User { name, id };
                 add_ref(&mut self.users, user, num);
             }
             2 => {
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.computers, name, num);
             }
             3 => {
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.applications, name, num);
             }
             4 => {
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.events, name, num);
             }
             5 => {
                 let id = parser.parse_uuid()?;
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 let metadata = Metadata { name, id };
                 add_ref(&mut self.metadata, metadata, num);
             }
             6 => {
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.worker_servers, name, num);
             }
             7 => {
                 let port = parser.parse_usize()? as u32;
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.ports, port, num);
             }
             8 => {
                 let port = parser.parse_usize()? as u32;
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 add_ref(&mut self.sync_ports, port, num);
             }
             9 => {
                 let id = parser.parse_uuid()?;
                 let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()? as usize;
+                let num = parser.parse_usize()?;
                 let data_separation = DataSeparation {
                     id,
                     name,
@@ -196,18 +196,18 @@ impl References {
             }
             10 => {
                 let obj = parser.parse_object()?.to_string();
-                let ind = parser.parse_usize()? as usize;
-                let num = parser.parse_usize()? as usize;
+                let ind = parser.parse_usize()?;
+                let num = parser.parse_usize()?;
                 let mut vec = &mut self.data_separation[ind].values;
                 add_ref(&mut vec, obj, num);
             }
             11 | 12 => {
                 let _obj = parser.parse_object()?;
-                let _num = parser.parse_usize()? as usize;
+                let _num = parser.parse_usize()?;
             }
             13 => {
                 let _num = parser.parse_usize()?;
-                let _num = parser.parse_usize()? as usize;
+                let _num = parser.parse_usize()?;
             }
             t => panic!("Unknown reference type: {t}"),
         }

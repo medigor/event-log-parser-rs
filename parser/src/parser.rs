@@ -1,4 +1,4 @@
-use std::{borrow::Cow, str::FromStr};
+use std::{borrow::Cow, cmp::min, marker::PhantomData, str::FromStr};
 
 use uuid::Uuid;
 
@@ -18,53 +18,61 @@ impl<'a> LogStr<'a> {
 }
 
 pub struct Parser<'a> {
-    buffer: &'a [u8],
-    position: usize,
+    source: *const u8,
+    ptr: *const u8,
+    end: *const u8,
+    _marker: PhantomData<&'a u8>,
 }
 
 impl<'a> Parser<'a> {
     pub fn new(buffer: &[u8]) -> Parser {
+        let ptr = buffer.as_ptr();
+        let end = unsafe { ptr.add(buffer.len()) };
         Parser {
-            buffer,
-            position: 0,
+            source: ptr,
+            ptr,
+            end,
+            _marker: PhantomData,
         }
     }
 
     pub fn position(&self) -> usize {
-        self.position
+        unsafe { self.ptr.offset_from(self.source) as usize }
     }
 
     pub fn next(&mut self) -> Option<u8> {
-        if self.position < self.buffer.len() {
-            let r = self.buffer[self.position];
-            self.position += 1;
-            Some(r)
-        } else {
+        if self.ptr == self.end {
             None
+        } else {
+            let v = unsafe { *self.ptr };
+            self.ptr = unsafe { self.ptr.add(1) };
+            Some(v)
         }
     }
 
     pub fn skip(&mut self, count: usize) -> Option<()> {
-        if (self.position + count) < self.buffer.len() {
-            self.position += count;
-            Some(())
-        } else {
+        let new_ptr = unsafe { self.ptr.add(count) };
+        if new_ptr > self.end {
             None
+        } else {
+            self.ptr = new_ptr;
+            Some(())
         }
     }
 
     pub fn current(&self) -> u8 {
-        if self.position == 0 {
+        if self.ptr == self.source {
             panic!("before need to call next()")
         }
-        self.buffer[self.position - 1]
+        unsafe { *self.ptr.sub(1) }
     }
 
     pub fn peek(&self) -> Option<u8> {
-        if (self.position) < self.buffer.len() {
-            Some(self.buffer[self.position])
-        } else {
+        if self.ptr == self.end {
             None
+        } else {
+            let v = unsafe { *self.ptr };
+            Some(v)
         }
     }
 
@@ -81,14 +89,14 @@ impl<'a> Parser<'a> {
     }
 
     pub fn parse_raw(&mut self) -> Option<&'a [u8]> {
-        let start = self.position;
+        let ptr = self.ptr;
         loop {
             let next = self.next()?;
             if next == b',' || next == b'}' {
                 break;
             }
         }
-        Some(&self.buffer[start..self.position - 1])
+        Some(unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) })
     }
 
     pub fn parse_uuid(&mut self) -> Option<Uuid> {
@@ -102,13 +110,14 @@ impl<'a> Parser<'a> {
     pub fn parse_str(&mut self) -> Option<LogStr<'a>> {
         let ch = self.next()?;
         if ch != b'"' {
-            let s = &self.buffer[self.position..self.position + 20];
+            let len = min(20, unsafe { self.end.offset_from(self.ptr) as usize });
+            let s = unsafe { std::slice::from_raw_parts(self.ptr, len) };
             unsafe {
                 let s = std::str::from_utf8_unchecked(s);
                 panic!("Invalid data 1: {}", s);
             }
         }
-        let position = self.position;
+        let ptr = self.ptr;
         let mut need_replace_quotes = false;
 
         loop {
@@ -122,7 +131,12 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let s = unsafe { std::str::from_utf8_unchecked(&self.buffer[position..self.position - 2]) };
+        let s = unsafe {
+            std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+                ptr,
+                self.ptr.offset_from(ptr) as usize - 2,
+            ))
+        };
         Some(LogStr {
             s,
             need_replace_quotes,
@@ -134,7 +148,7 @@ impl<'a> Parser<'a> {
         while self.next()? != b'{' {}
 
         // Запомнить начало строки
-        let position = self.position - 1;
+        let ptr = unsafe { self.ptr.sub(1) };
         let mut end_of_record = false;
 
         while !end_of_record {
@@ -159,19 +173,18 @@ impl<'a> Parser<'a> {
             last = self.next()?;
         }
         if last != b',' && last != b'}' {
-            let mut s = &self.buffer[self.position..];
-            if s.len() > 20 {
-                s = &s[..20];
-            }
             unsafe {
+                let len = min(20, self.ptr.offset_from(self.end) as usize);
+                let s = std::slice::from_raw_parts(self.ptr, len);
                 let s = std::str::from_utf8_unchecked(s);
                 panic!("Invalid data 2: {}", s);
             }
         }
         unsafe {
-            Some(std::str::from_utf8_unchecked(
-                &self.buffer[position..self.position - 1],
-            ))
+            Some(std::str::from_utf8_unchecked(std::slice::from_raw_parts(
+                ptr,
+                self.ptr.offset_from(ptr) as usize - 1,
+            )))
         }
     }
 }
