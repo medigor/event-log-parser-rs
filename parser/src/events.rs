@@ -3,8 +3,9 @@ use crate::{
     references::{Metadata, References, User},
 };
 use chrono::{NaiveDate, NaiveDateTime};
+use memmap2::Mmap;
+use std::fs::File;
 use std::{borrow::Cow, io, path::Path};
-use std::{fs::File, io::Read};
 
 pub enum TransactionStatus {
     Unfinished,
@@ -157,28 +158,9 @@ where
     F: FnMut(Event) -> (),
     P: AsRef<Path>,
 {
-    let mut reader = File::open(file_name)?;
-
-    let mut buffer = Box::new([0u8; 1024 * 1024]);
-    let mut offset = 0usize;
-
-    loop {
-        let len = reader.read(&mut buffer[offset..])?;
-        if len == 0 {
-            break;
-        }
-        let len = len + offset;
-        let read = parse_buffer(&mut buffer[0..len], action);
-
-        if read == 0 {
-            panic!("buffer too small")
-        }
-
-        for i in read..len {
-            buffer[i - read] = buffer[i];
-        }
-        offset = len - read;
-    }
+    let file = File::open(file_name)?;
+    let mmap = unsafe { Mmap::map(&file).unwrap() };
+    parse_buffer(&mmap[..], action);
 
     Ok(())
 }
