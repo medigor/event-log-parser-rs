@@ -1,5 +1,5 @@
-use std::{borrow::Cow, cmp::min, marker::PhantomData, str::FromStr};
-
+use libc::c_void;
+use std::{borrow::Cow, cmp::min, ffi::c_int, marker::PhantomData, str::FromStr};
 use uuid::Uuid;
 
 pub struct LogStr<'a> {
@@ -60,6 +60,43 @@ impl<'a> Parser<'a> {
         }
     }
 
+    pub fn skip_to(&mut self, ch: u8) -> Option<()> {
+        let len = unsafe { self.end.offset_from(self.ptr) } as usize;
+        let new_ptr = unsafe { libc::memchr(self.ptr as *const c_void, ch as c_int, len) };
+        if new_ptr.is_null() {
+            return None;
+        }
+        self.ptr = unsafe { new_ptr.add(1) } as *mut u8;
+        Some(())
+    }
+
+    pub fn skip_to2(&mut self, ch1: u8, ch2: u8) -> Option<()> {
+        let len = unsafe { self.end.offset_from(self.ptr) } as usize;
+
+        let new_ptr1 =
+            unsafe { libc::memchr(self.ptr as *const c_void, ch1 as c_int, len) } as *const u8;
+        let new_ptr2 =
+            unsafe { libc::memchr(self.ptr as *const c_void, ch2 as c_int, len) } as *const u8;
+
+        let new_ptr = {
+            if new_ptr1.is_null() {
+                new_ptr2
+            } else if new_ptr2.is_null() {
+                new_ptr1
+            } else if new_ptr1 < new_ptr2 {
+                new_ptr1
+            } else {
+                new_ptr2
+            }
+        };
+        if new_ptr.is_null() {
+            None
+        } else {
+            self.ptr = unsafe { new_ptr.add(1) };
+            Some(())
+        }
+    }
+
     pub fn current(&self) -> u8 {
         if self.ptr == self.source {
             panic!("before need to call next()")
@@ -90,12 +127,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_raw(&mut self) -> Option<&'a [u8]> {
         let ptr = self.ptr;
-        loop {
-            let next = self.next()?;
-            if next == b',' || next == b'}' {
-                break;
-            }
-        }
+        self.skip_to2(b',', b'}')?;
         Some(unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) })
     }
 
@@ -121,13 +153,12 @@ impl<'a> Parser<'a> {
         let mut need_replace_quotes = false;
 
         loop {
-            if self.next()? == b'"' {
-                let next = self.next()?;
-                if next == b',' || next == b'}' {
-                    break;
-                } else if next == b'"' {
-                    need_replace_quotes = true;
-                }
+            self.skip_to(b'"')?;
+            let next = self.next()?;
+            if next == b',' || next == b'}' {
+                break;
+            } else if next == b'"' {
+                need_replace_quotes = true;
             }
         }
 
