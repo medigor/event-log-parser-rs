@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 uuid = "1.1"
 chrono = "0.4"
-libc = "0.2"
+memchr = "2.5"

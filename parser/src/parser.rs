@@ -1,5 +1,4 @@
-use libc::c_void;
-use std::{borrow::Cow, cmp::min, ffi::c_int, marker::PhantomData, str::FromStr};
+use std::{borrow::Cow, cmp::min, marker::PhantomData, str::FromStr};
 use uuid::Uuid;
 
 pub struct LogStr<'a> {
@@ -62,39 +61,16 @@ impl<'a> Parser<'a> {
 
     pub fn skip_to(&mut self, ch: u8) -> Option<()> {
         let len = unsafe { self.end.offset_from(self.ptr) } as usize;
-        let new_ptr = unsafe { libc::memchr(self.ptr as *const c_void, ch as c_int, len) };
-        if new_ptr.is_null() {
-            return None;
-        }
-        self.ptr = unsafe { new_ptr.add(1) } as *mut u8;
-        Some(())
+        let haystack = unsafe { std::slice::from_raw_parts(self.ptr, len) };
+        let i = memchr::memchr(ch, haystack)?;
+        self.skip(i + 1)
     }
 
     pub fn skip_to2(&mut self, ch1: u8, ch2: u8) -> Option<()> {
         let len = unsafe { self.end.offset_from(self.ptr) } as usize;
-
-        let new_ptr1 =
-            unsafe { libc::memchr(self.ptr as *const c_void, ch1 as c_int, len) } as *const u8;
-        let new_ptr2 =
-            unsafe { libc::memchr(self.ptr as *const c_void, ch2 as c_int, len) } as *const u8;
-
-        let new_ptr = {
-            if new_ptr1.is_null() {
-                new_ptr2
-            } else if new_ptr2.is_null() {
-                new_ptr1
-            } else if new_ptr1 < new_ptr2 {
-                new_ptr1
-            } else {
-                new_ptr2
-            }
-        };
-        if new_ptr.is_null() {
-            None
-        } else {
-            self.ptr = unsafe { new_ptr.add(1) };
-            Some(())
-        }
+        let haystack = unsafe { std::slice::from_raw_parts(self.ptr, len) };
+        let i = memchr::memchr2(ch1, ch2, haystack)?;
+        self.skip(i + 1)
     }
 
     pub fn current(&self) -> u8 {
