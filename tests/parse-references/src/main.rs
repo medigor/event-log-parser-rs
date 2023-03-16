@@ -1,4 +1,4 @@
-use std::{env, time::Instant, io};
+use std::{env, io, time::Instant};
 
 use event_log_parser::references::References;
 
@@ -10,6 +10,9 @@ fn main() -> io::Result<()> {
     let now = Instant::now();
     let mut refs = References::default();
     refs.parse(file_name)?;
-    println!("duration: {} ms", (now.elapsed().as_nanos() as f64) / 1_000_000f64);
+    println!(
+        "duration: {} ms",
+        (now.elapsed().as_nanos() as f64) / 1_000_000f64
+    );
     Ok(())
 }

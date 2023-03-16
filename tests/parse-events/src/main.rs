@@ -1,4 +1,4 @@
-use std::{env, time::Instant, hint::black_box, io};
+use std::{env, hint::black_box, io, time::Instant};
 
 fn main() -> io::Result<()> {
     let Some(file_name) = env::args().nth(1) else {
@@ -12,7 +12,10 @@ fn main() -> io::Result<()> {
         black_box(event);
         count += 1;
     })?;
-    println!("duration: {} ms", (now.elapsed().as_nanos() as f64) / 1_000_000f64);
+    println!(
+        "duration: {} ms",
+        (now.elapsed().as_nanos() as f64) / 1_000_000f64
+    );
     println!("count: {count}");
     Ok(())
 }

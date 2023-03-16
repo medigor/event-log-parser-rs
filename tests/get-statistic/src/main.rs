@@ -10,7 +10,6 @@ use std::{
 use event_log_parser::references::References;
 
 fn main() -> io::Result<()> {
-    
     let now = Instant::now();
 
     let Some(dir_name) = env::args().nth(1) else {
