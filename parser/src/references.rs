@@ -1,4 +1,5 @@
 use crate::parser::Parser;
+use std::cmp::Ordering;
 use std::{fs::File, io::Read};
 use std::{io, path::Path};
 use uuid::Uuid;
@@ -56,6 +57,7 @@ impl DataSeparation {
     }
 }
 
+#[derive(Default)]
 pub struct References {
     users: Vec<User>,
     computers: Vec<String>,
@@ -69,20 +71,6 @@ pub struct References {
 }
 
 impl References {
-    pub fn new() -> References {
-        References {
-            users: Vec::new(),
-            computers: Vec::new(),
-            applications: Vec::new(),
-            events: Vec::new(),
-            metadata: Vec::new(),
-            worker_servers: Vec::new(),
-            ports: Vec::new(),
-            sync_ports: Vec::new(),
-            data_separation: Vec::new(),
-        }
-    }
-
     pub fn parse<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
         let mut reader = File::open(path)?;
 
@@ -101,7 +89,7 @@ impl References {
                 break;
             }
             let len = len + offset;
-            let read = self.parse_buffer(&mut buffer[0..len]);
+            let read = self.parse_buffer(&buffer[0..len]);
 
             for i in read..len {
                 buffer[i - read] = buffer[i];
@@ -112,7 +100,7 @@ impl References {
         Ok(())
     }
 
-    fn parse_buffer<'a>(&mut self, buffer: &'a [u8]) -> usize {
+    fn parse_buffer(&mut self, buffer: &[u8]) -> usize {
         let mut parser = Parser::new(buffer);
         loop {
             let position = parser.position();
@@ -124,15 +112,15 @@ impl References {
 
     fn parser_record(&mut self, parser: &mut Parser) -> Option<()> {
         fn add_ref<T: Default>(vec: &mut Vec<T>, value: T, num: usize) {
-            if num < vec.len() {
-                vec[num] = value;
-            } else if num == vec.len() {
-                vec.push(value);
-            } else {
-                for _ in 0..num - vec.len() {
-                    vec.push(T::default());
+            match num.cmp(&vec.len()) {
+                Ordering::Less => vec[num] = value,
+                Ordering::Equal => vec.push(value),
+                Ordering::Greater => {
+                    for _ in 0..num - vec.len() {
+                        vec.push(T::default());
+                    }
+                    vec.push(value);
                 }
-                vec.push(value);
             }
         }
 
@@ -198,8 +186,8 @@ impl References {
                 let obj = parser.parse_object()?.to_string();
                 let ind = parser.parse_usize()?;
                 let num = parser.parse_usize()?;
-                let mut vec = &mut self.data_separation[ind].values;
-                add_ref(&mut vec, obj, num);
+                let vec = &mut self.data_separation[ind].values;
+                add_ref(vec, obj, num);
             }
             11 | 12 => {
                 let _obj = parser.parse_object()?;
@@ -257,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_parse_record_1() {
-        let mut references = References::new();
+        let mut references = References::default();
         let buf = br#" {1,d303f30c-9e76-412f-95d2-3c3622e6b6e1,"Executor",1}"#;
         let mut parser = Parser::new(buf);
 

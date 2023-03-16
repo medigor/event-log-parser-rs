@@ -2,7 +2,7 @@ use event_log_parser::{events, references::References};
 
 #[test]
 fn test_files() {
-    let mut refs = References::new();
+    let mut refs = References::default();
     refs.parse("../test-log/1Cv8.lgf").unwrap();
 
     assert_eq!(refs.users()[2].name(), "Андрей Кудрявцев");

@@ -127,7 +127,7 @@ impl<'a> Event<'a> {
         self.port_id
     }
 
-    pub fn port<'refs>(&self, refs: &'refs References) -> u32 {
+    pub fn port(&self, refs: &References) -> u32 {
         refs.ports()[self.port_id]
     }
 
@@ -135,7 +135,7 @@ impl<'a> Event<'a> {
         self.sync_port_id
     }
 
-    pub fn sync_port<'refs>(&self, refs: &'refs References) -> u32 {
+    pub fn sync_port(&self, refs: &References) -> u32 {
         refs.sync_ports()[self.sync_port_id]
     }
 
@@ -154,7 +154,7 @@ impl<'a> Event<'a> {
 
 pub fn parse<F, P>(file_name: P, action: &mut F) -> io::Result<()>
 where
-    F: FnMut(Event) -> (),
+    F: FnMut(Event),
     P: AsRef<Path>,
 {
     let mut reader = File::open(file_name)?;
@@ -168,7 +168,7 @@ where
             break;
         }
         let len = len + offset;
-        let read = parse_buffer(&mut buffer[0..len], action);
+        let read = parse_buffer(&buffer[0..len], action);
 
         if read == 0 {
             panic!("buffer too small")
@@ -183,9 +183,9 @@ where
     Ok(())
 }
 
-fn parse_buffer<'a, F>(buffer: &'a [u8], action: &mut F) -> usize
+fn parse_buffer<F>(buffer: &[u8], action: &mut F) -> usize
 where
-    F: FnMut(Event) -> (),
+    F: FnMut(Event),
 {
     let mut parser = Parser::new(buffer);
     loop {

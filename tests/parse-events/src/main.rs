@@ -1,7 +1,7 @@
 use std::{env, time::Instant, hint::black_box, io};
 
 fn main() -> io::Result<()> {
-    let Some(file_name) = env::args().skip(1).next() else {
+    let Some(file_name) = env::args().nth(1) else {
         println!("Usage: parse-events /path/to/file/*.lgp");
         return Ok(());
     };

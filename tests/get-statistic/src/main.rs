@@ -13,12 +13,12 @@ fn main() -> io::Result<()> {
     
     let now = Instant::now();
 
-    let Some(dir_name) = env::args().skip(1).next() else {
+    let Some(dir_name) = env::args().nth(1) else {
         println!("Usage: parse-events /path/to/log/dir");
         return Ok(());
     };
 
-    let mut refs = References::new();
+    let mut refs = References::default();
     refs.parse(Path::new(&dir_name).join("1Cv8.lgf"))?;
 
     let session_start_id = *refs
