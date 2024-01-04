@@ -257,9 +257,9 @@ fn parse_datetime(parser: &mut Parser) -> Option<NaiveDateTime> {
     parser.skip(1)?;
 
     let date = NaiveDate::from_ymd_opt(year as i32, month, day)
-        .unwrap()
+        .expect("Invalid file format")
         .and_hms_opt(hour, min, sec)
-        .unwrap();
+        .expect("Invalid file format");
     Some(date)
 }
 

@@ -2,16 +2,22 @@ use std::{borrow::Cow, cmp::min, marker::PhantomData, str::FromStr};
 use uuid::Uuid;
 
 pub struct LogStr<'a> {
-    s: &'a str,
+    str: &'a [u8],
     need_replace_quotes: bool,
 }
 
 impl<'a> LogStr<'a> {
+    pub fn new(str: &'a [u8], need_replace_quotes: bool) -> LogStr {
+        LogStr {
+            str,
+            need_replace_quotes,
+        }
+    }
     pub fn str(&self) -> Cow<'a, str> {
-        if self.need_replace_quotes {
-            Cow::Owned(self.s.replace(r#""""#, r#"""#))
-        } else {
-            Cow::Borrowed(self.s)
+        let str = String::from_utf8_lossy(self.str);
+        match self.need_replace_quotes {
+            true => Cow::Owned(str.replace(r#""""#, r#"""#)),
+            _ => str,
         }
     }
 }
@@ -109,10 +115,8 @@ impl<'a> Parser<'a> {
 
     pub fn parse_uuid(&mut self) -> Option<Uuid> {
         let raw = self.parse_raw()?;
-        unsafe {
-            let s = std::str::from_utf8_unchecked(raw);
-            Some(Uuid::from_str(s).unwrap())
-        }
+        let s = std::str::from_utf8(raw).expect("Invalid file format");
+        Some(Uuid::from_str(s).expect("Invalid file format"))
     }
 
     pub fn parse_str(&mut self) -> Option<LogStr<'a>> {
@@ -120,10 +124,7 @@ impl<'a> Parser<'a> {
         if ch != b'"' {
             let len = min(20, unsafe { self.end.offset_from(self.ptr) as usize });
             let s = unsafe { std::slice::from_raw_parts(self.ptr, len) };
-            unsafe {
-                let s = std::str::from_utf8_unchecked(s);
-                panic!("Invalid data 1: {}", s);
-            }
+            panic!("Invalid data 1: {}", String::from_utf8_lossy(s));
         }
         let ptr = self.ptr;
         let mut need_replace_quotes = false;
@@ -138,16 +139,8 @@ impl<'a> Parser<'a> {
             }
         }
 
-        let s = unsafe {
-            std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-                ptr,
-                self.ptr.offset_from(ptr) as usize - 2,
-            ))
-        };
-        Some(LogStr {
-            s,
-            need_replace_quotes,
-        })
+        let s = unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 2) };
+        Some(LogStr::new(s, need_replace_quotes))
     }
 
     pub fn parse_object(&mut self) -> Option<&'a str> {
@@ -183,16 +176,12 @@ impl<'a> Parser<'a> {
             unsafe {
                 let len = min(20, self.ptr.offset_from(self.end) as usize);
                 let s = std::slice::from_raw_parts(self.ptr, len);
-                let s = std::str::from_utf8_unchecked(s);
-                panic!("Invalid data 2: {}", s);
+                panic!("Invalid data 2: {}", String::from_utf8_lossy(s));
             }
         }
-        unsafe {
-            Some(std::str::from_utf8_unchecked(std::slice::from_raw_parts(
-                ptr,
-                self.ptr.offset_from(ptr) as usize - 1,
-            )))
-        }
+
+        let s = unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) };
+        Some(std::str::from_utf8(s).expect("Invalid file format"))
     }
 }
 
