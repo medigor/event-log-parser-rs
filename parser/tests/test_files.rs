@@ -1,15 +1,15 @@
-use event_log_parser::{events, references::References};
+use event_log_parser_1c::{events, references::References};
 
 #[test]
 fn test_files() {
     let mut refs = References::default();
-    refs.parse("../test-log/1Cv8.lgf").unwrap();
+    refs.parse_file("../test-log/1Cv8.lgf").unwrap();
 
     assert_eq!(refs.users()[2].name(), "Андрей Кудрявцев");
     assert_eq!(refs.computers()[1], "computer1");
 
     let mut total_events = 0;
-    events::parse("../test-log/20221212000000.lgp", &mut |event| {
+    events::parse_file("../test-log/20221212000000.lgp", &mut |event| {
         let _date = event.date();
 
         if total_events == 11 {

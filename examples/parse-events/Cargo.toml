@@ -1,7 +1,8 @@
 [package]
+resolver = "2"
 name = "parse-events"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-event-log-parser = { path = "../../parser" }
+event-log-parser-1c = { path = "../../parser" }

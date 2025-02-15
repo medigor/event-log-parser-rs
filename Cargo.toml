@@ -2,9 +2,9 @@
 resolver = "2"
 members = [
   "parser",
-  "tests/parse-events",
-  "tests/parse-references",
-  "tests/get-statistic",
+  "examples/get-statistic",
+  "examples/parse-events",
+  "examples/parse-references",
 ]
 
 [profile.bench]

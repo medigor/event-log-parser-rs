@@ -7,7 +7,7 @@ pub struct LogStr<'a> {
 }
 
 impl<'a> LogStr<'a> {
-    pub fn new(str: &'a [u8], need_replace_quotes: bool) -> LogStr {
+    pub fn new(str: &'a [u8], need_replace_quotes: bool) -> LogStr<'a> {
         LogStr {
             str,
             need_replace_quotes,

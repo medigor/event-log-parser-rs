@@ -71,10 +71,10 @@ pub struct References {
 }
 
 impl References {
-    pub fn parse<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+    pub fn parse_file<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
         let mut reader = File::open(path)?;
 
-        let mut buffer = Box::new([0u8; 1024 * 1024]);
+        let mut buffer = vec![0u8; 512 * 1024];
         let mut offset = 0usize;
 
         // let mut ver = String::new();
@@ -91,16 +91,20 @@ impl References {
             let len = len + offset;
             let read = self.parse_buffer(&buffer[0..len]);
 
-            for i in read..len {
-                buffer[i - read] = buffer[i];
+            if read == 0 {
+                buffer.extend((0..buffer.len()).map(|_| 0));
+            } else {
+                for i in read..len {
+                    buffer[i - read] = buffer[i];
+                }
+                offset = len - read;
             }
-            offset = len - read;
         }
 
         Ok(())
     }
 
-    fn parse_buffer(&mut self, buffer: &[u8]) -> usize {
+    pub fn parse_buffer(&mut self, buffer: &[u8]) -> usize {
         let mut parser = Parser::new(buffer);
         loop {
             let position = parser.position();

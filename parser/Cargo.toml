@@ -1,7 +1,15 @@
 [package]
-name = "event-log-parser"
+resolver = "2"
+name = "event-log-parser-1c"
 version = "0.1.0"
 edition = "2021"
+description = "Event log parser for 1C:Enterprise"
+license = "MIT"
+categories = []
+repository = "https://github.com/medigor/event-log-parser-rs/"
+homepage = "https://github.com/medigor/event-log-parser-rs/"
+keywords = ["1c-enterprise", "native-api", "addin"]
+readme = "README.md"
 
 [dependencies]
 uuid = "1.1"

@@ -8,7 +8,7 @@ fn main() -> io::Result<()> {
 
     let mut count = 0;
     let now = Instant::now();
-    event_log_parser::events::parse(file_name, &mut |event| {
+    event_log_parser_1c::events::parse_file(file_name, &mut |event| {
         black_box(event);
         count += 1;
     })?;

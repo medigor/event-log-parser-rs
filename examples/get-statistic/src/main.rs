@@ -7,18 +7,19 @@ use std::{
     time::Instant,
 };
 
-use event_log_parser::references::References;
+use event_log_parser_1c::events::{self, EventLogLevel};
+use event_log_parser_1c::references::References;
 
 fn main() -> io::Result<()> {
     let now = Instant::now();
 
     let Some(dir_name) = env::args().nth(1) else {
-        println!("Usage: parse-events /path/to/log/dir");
+        println!("Usage: get-statistic /path/to/log/dir");
         return Ok(());
     };
 
     let mut refs = References::default();
-    refs.parse(Path::new(&dir_name).join("1Cv8.lgf"))?;
+    refs.parse_file(Path::new(&dir_name).join("1Cv8.lgf"))?;
 
     let session_start_id = *refs
         .events()
@@ -51,24 +52,24 @@ fn main() -> io::Result<()> {
     let mut top_errors = HashMap::<usize, usize>::new();
 
     for entry in read_dir(dir_name)? {
-        let entry = entry?;
-        if entry.file_name() == "1Cv8.lgf" {
+        let path = entry?.path();
+        if path.extension() != Some("lgp".as_ref()) {
             continue;
         }
-        let meta = metadata(entry.path())?;
+        let meta = metadata(&path)?;
         total_log_size += meta.len();
-        event_log_parser::events::parse(entry.path(), &mut |event| {
+        events::parse_file(path, &mut |event| {
             match event.log_level() {
-                event_log_parser::events::EventLogLevel::Error => {
+                EventLogLevel::Error => {
                     total_error += 1;
                     top_errors
                         .entry(event.event_id())
                         .and_modify(|counter| *counter += 1)
                         .or_insert(1);
                 }
-                event_log_parser::events::EventLogLevel::Information => total_information += 1,
-                event_log_parser::events::EventLogLevel::Note => total_note += 1,
-                event_log_parser::events::EventLogLevel::Warning => total_warning += 1,
+                EventLogLevel::Information => total_information += 1,
+                EventLogLevel::Note => total_note += 1,
+                EventLogLevel::Warning => total_warning += 1,
             }
 
             if event.event_id() == session_start_id {

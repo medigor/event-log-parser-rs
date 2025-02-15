@@ -3,6 +3,7 @@ use crate::{
     references::{Metadata, References, User},
 };
 use chrono::{NaiveDate, NaiveDateTime};
+use core::str;
 use std::{borrow::Cow, io, path::Path};
 use std::{fs::File, io::Read};
 
@@ -152,14 +153,14 @@ impl<'a> Event<'a> {
     }
 }
 
-pub fn parse<F, P>(file_name: P, action: &mut F) -> io::Result<()>
+pub fn parse_file<F, P>(file_name: P, action: &mut F) -> io::Result<()>
 where
     F: FnMut(Event),
     P: AsRef<Path>,
 {
-    let mut reader = File::open(file_name)?;
+    let mut reader = File::open(file_name.as_ref())?;
 
-    let mut buffer = Box::new([0u8; 1024 * 1024]);
+    let mut buffer = vec![0_u8; 512 * 1024];
     let mut offset = 0usize;
 
     loop {
@@ -171,19 +172,19 @@ where
         let read = parse_buffer(&buffer[0..len], action);
 
         if read == 0 {
-            panic!("buffer too small")
+            buffer.extend((0..buffer.len()).map(|_| 0));
+        } else {
+            for i in read..len {
+                buffer[i - read] = buffer[i];
+            }
+            offset = len - read;
         }
-
-        for i in read..len {
-            buffer[i - read] = buffer[i];
-        }
-        offset = len - read;
     }
 
     Ok(())
 }
 
-fn parse_buffer<F>(buffer: &[u8], action: &mut F) -> usize
+pub fn parse_buffer<F>(buffer: &[u8], action: &mut F) -> usize
 where
     F: FnMut(Event),
 {
