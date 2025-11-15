@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cmp::min, marker::PhantomData, str::FromStr};
+use std::{borrow::Cow, marker::PhantomData, str::FromStr};
 use uuid::Uuid;
 
 pub struct LogStr<'a> {
@@ -22,6 +22,14 @@ impl<'a> LogStr<'a> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ParseError {
+    End,
+    InvalidFormat,
+}
+
+pub type ParseResult<T> = std::result::Result<T, ParseError>;
+
 pub struct Parser<'a> {
     source: *const u8,
     ptr: *const u8,
@@ -30,7 +38,7 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(buffer: &[u8]) -> Parser {
+    pub fn new(buffer: &[u8]) -> Parser<'_> {
         let ptr = buffer.as_ptr();
         let end = unsafe { ptr.add(buffer.len()) };
         Parser {
@@ -45,13 +53,13 @@ impl<'a> Parser<'a> {
         unsafe { self.ptr.offset_from(self.source) as usize }
     }
 
-    pub fn next(&mut self) -> Option<u8> {
+    pub fn next(&mut self) -> ParseResult<u8> {
         if self.ptr == self.end {
-            None
+            Err(ParseError::End)
         } else {
             let v = unsafe { *self.ptr };
             self.ptr = unsafe { self.ptr.add(1) };
-            Some(v)
+            Ok(v)
         }
     }
 
@@ -86,16 +94,16 @@ impl<'a> Parser<'a> {
         unsafe { *self.ptr.sub(1) }
     }
 
-    pub fn peek(&self) -> Option<u8> {
+    pub fn peek(&self) -> ParseResult<u8> {
         if self.ptr == self.end {
-            None
+            Err(ParseError::End)
         } else {
             let v = unsafe { *self.ptr };
-            Some(v)
+            Ok(v)
         }
     }
 
-    pub fn parse_usize(&mut self) -> Option<usize> {
+    pub fn parse_usize(&mut self) -> ParseResult<usize> {
         let mut number: usize = 0;
         loop {
             let next = self.next()?;
@@ -104,33 +112,31 @@ impl<'a> Parser<'a> {
             }
             number = number * 10 + (next - b'0') as usize;
         }
-        Some(number)
+        Ok(number)
     }
 
-    pub fn parse_raw(&mut self) -> Option<&'a [u8]> {
+    pub fn parse_raw(&mut self) -> ParseResult<&'a [u8]> {
         let ptr = self.ptr;
-        self.skip_to2(b',', b'}')?;
-        Some(unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) })
+        self.skip_to2(b',', b'}').ok_or(ParseError::End)?;
+        Ok(unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) })
     }
 
-    pub fn parse_uuid(&mut self) -> Option<Uuid> {
+    pub fn parse_uuid(&mut self) -> ParseResult<Uuid> {
         let raw = self.parse_raw()?;
-        let s = std::str::from_utf8(raw).expect("Invalid file format");
-        Some(Uuid::from_str(s).expect("Invalid file format"))
+        let s = std::str::from_utf8(raw).map_err(|_| ParseError::InvalidFormat)?;
+        Uuid::from_str(s).map_err(|_| ParseError::InvalidFormat)
     }
 
-    pub fn parse_str(&mut self) -> Option<LogStr<'a>> {
+    pub fn parse_str(&mut self) -> ParseResult<LogStr<'a>> {
         let ch = self.next()?;
         if ch != b'"' {
-            let len = min(20, unsafe { self.end.offset_from(self.ptr) as usize });
-            let s = unsafe { std::slice::from_raw_parts(self.ptr, len) };
-            panic!("Invalid data 1: {}", String::from_utf8_lossy(s));
+            return Err(ParseError::InvalidFormat);
         }
         let ptr = self.ptr;
         let mut need_replace_quotes = false;
 
         loop {
-            self.skip_to(b'"')?;
+            self.skip_to(b'"').ok_or(ParseError::End)?;
             let next = self.next()?;
             if next == b',' || next == b'}' {
                 break;
@@ -140,10 +146,10 @@ impl<'a> Parser<'a> {
         }
 
         let s = unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 2) };
-        Some(LogStr::new(s, need_replace_quotes))
+        Ok(LogStr::new(s, need_replace_quotes))
     }
 
-    pub fn parse_object(&mut self) -> Option<&'a str> {
+    pub fn parse_object(&mut self) -> ParseResult<&'a str> {
         // Перейти к '{'
         while self.next()? != b'{' {}
 
@@ -160,7 +166,7 @@ impl<'a> Parser<'a> {
                 b'{' => {
                     self.parse_object()?;
                 }
-                b'\r' => self.skip(2)?,
+                b'\r' => self.skip(2).ok_or(ParseError::End)?,
                 _ => {
                     self.parse_raw()?;
                 }
@@ -169,92 +175,95 @@ impl<'a> Parser<'a> {
         }
         let mut last = self.next()?;
         if last == b'\r' {
-            self.skip(1)?;
+            self.skip(1).ok_or(ParseError::End)?;
             last = self.next()?;
         }
         if last != b',' && last != b'}' {
-            unsafe {
-                let len = min(20, self.ptr.offset_from(self.end) as usize);
-                let s = std::slice::from_raw_parts(self.ptr, len);
-                panic!("Invalid data 2: {}", String::from_utf8_lossy(s));
-            }
+            return Err(ParseError::InvalidFormat);
         }
 
         let s = unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) };
-        Some(std::str::from_utf8(s).expect("Invalid file format"))
+        std::str::from_utf8(s).map_err(|_| ParseError::InvalidFormat)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use uuid::uuid;
+
     use super::*;
 
     #[test]
-    fn test_parse_u32() {
+    fn test_parse_u32() -> ParseResult<()> {
         let buf = b"12345,";
         let mut parser = Parser::new(buf);
-        let n = parser.parse_usize().unwrap();
+        let n = parser.parse_usize()?;
         assert_eq!(n, 12345);
+        Ok(())
     }
 
     #[test]
-    fn test_parse_raw() {
+    fn test_parse_raw() -> ParseResult<()> {
         let buf = b"12345,";
         let mut parser = Parser::new(buf);
-        let r = parser.parse_raw().unwrap();
+        let r = parser.parse_raw()?;
         assert_eq!(r, b"12345");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_none() {
+    fn test_parse_error_end() -> ParseResult<()> {
         let buf = b"1111,12345";
         let mut parser = Parser::new(buf);
-        parser.skip(5);
+        parser.skip(5).ok_or(ParseError::End)?;
         let r = parser.parse_raw();
-        assert_eq!(r, None)
+        assert_eq!(r, Err(ParseError::End));
+        Ok(())
     }
 
     #[test]
-    fn test_parse_uuid() {
+    fn test_parse_uuid() -> ParseResult<()> {
         let buf = b"71ada582-5c75-466a-b17c-7b9a48af5f0b}";
         let mut parser = Parser::new(buf);
-        let uuid = parser.parse_uuid().unwrap();
-        assert_eq!(
-            uuid,
-            Uuid::from_str("71ada582-5c75-466a-b17c-7b9a48af5f0b").unwrap()
-        );
+        let uuid = parser.parse_uuid()?;
+        assert_eq!(uuid, uuid!("71ada582-5c75-466a-b17c-7b9a48af5f0b"));
+        Ok(())
     }
 
     #[test]
-    fn test_parse_str_1() {
+    fn test_parse_str_1() -> ParseResult<()> {
         let buf = b"\"12345\"}";
         let mut parser = Parser::new(buf);
-        let str = parser.parse_str().unwrap();
+        let str = parser.parse_str()?;
         assert_eq!(str.str(), "12345");
+        Ok(())
     }
 
     #[test]
-    fn test_parse_str_2() {
+    fn test_parse_str_2() -> ParseResult<()> {
         let buf = br#""123""45"}"#;
         let mut parser = Parser::new(buf);
-        let str = parser.parse_str().unwrap();
+        let str = parser.parse_str()?;
 
         assert_eq!(str.str(), r#"123"45"#);
+        Ok(())
     }
 
     #[test]
-    fn test_parse_object_1() {
+    fn test_parse_object_1() -> ParseResult<()> {
         let buf = br#"   {1,"N"}, 321"#;
         let mut parser = Parser::new(buf);
-        let res = parser.parse_object().unwrap();
+        let res = parser.parse_object()?;
         assert_eq!(res, r#"{1,"N"}"#);
+        Ok(())
     }
 
     #[test]
-    fn test_parse_object_2() {
+    fn test_parse_object_2() -> ParseResult<()> {
         let buf = br#"   {1,2,3,"123",{1,"N"}}, 321"#;
         let mut parser = Parser::new(buf);
-        let res = parser.parse_object().unwrap();
+        let res = parser.parse_object()?;
         assert_eq!(res, r#"{1,2,3,"123",{1,"N"}}"#);
+        Ok(())
     }
 }

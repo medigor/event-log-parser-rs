@@ -2,7 +2,7 @@
 resolver = "2"
 name = "event-log-parser-1c"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Event log parser for 1C:Enterprise"
 license = "MIT"
 categories = []

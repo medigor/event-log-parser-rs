@@ -1,4 +1,4 @@
-use crate::parser::Parser;
+use crate::parser::{ParseError, ParseResult, Parser};
 use std::cmp::Ordering;
 use std::{fs::File, io::Read};
 use std::{io, path::Path};
@@ -77,12 +77,6 @@ impl References {
         let mut buffer = vec![0u8; 512 * 1024];
         let mut offset = 0usize;
 
-        // let mut ver = String::new();
-        // let _ = reader.read_line(&mut ver).unwrap();
-        // let mut id = String::new();
-        // let _ = reader.read_line(&mut id).unwrap();
-        // let id = Uuid::parse_str(&id).unwrap();
-
         loop {
             let len = reader.read(&mut buffer[offset..])?;
             if len == 0 {
@@ -108,13 +102,18 @@ impl References {
         let mut parser = Parser::new(buffer);
         loop {
             let position = parser.position();
-            if self.parser_record(&mut parser).is_none() {
-                return position;
+            match self.parser_record(&mut parser) {
+                Ok(_) => (),
+                Err(ParseError::End) => return position,
+                Err(ParseError::InvalidFormat) => match parser.skip_to(b'\r') {
+                    Some(_) => (),
+                    None => return position,
+                },
             }
         }
     }
 
-    fn parser_record(&mut self, parser: &mut Parser) -> Option<()> {
+    fn parser_record(&mut self, parser: &mut Parser) -> ParseResult<()> {
         fn add_ref<T: Default>(vec: &mut Vec<T>, value: T, num: usize) {
             match num.cmp(&vec.len()) {
                 Ordering::Less => vec[num] = value,
@@ -203,7 +202,7 @@ impl References {
             }
             t => panic!("Unknown reference type: {t}"),
         }
-        Some(())
+        Ok(())
     }
 
     pub fn users(&self) -> &[User] {
@@ -241,25 +240,25 @@ impl References {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
 
-    use uuid::Uuid;
+    use uuid::uuid;
 
-    use crate::{parser::Parser, references::References};
+    use crate::{
+        parser::{ParseResult, Parser},
+        references::References,
+    };
 
     #[test]
-    fn test_parse_record_1() {
+    fn test_parse_record_1() -> ParseResult<()> {
         let mut references = References::default();
         let buf = br#" {1,d303f30c-9e76-412f-95d2-3c3622e6b6e1,"Executor",1}"#;
         let mut parser = Parser::new(buf);
 
-        references.parser_record(&mut parser).unwrap();
+        references.parser_record(&mut parser)?;
         let user = &references.users[1];
 
-        assert_eq!(
-            user.id,
-            Uuid::from_str("d303f30c-9e76-412f-95d2-3c3622e6b6e1").unwrap()
-        );
-        assert_eq!(user.name, "Executor")
+        assert_eq!(user.id, uuid!("d303f30c-9e76-412f-95d2-3c3622e6b6e1"));
+        assert_eq!(user.name, "Executor");
+        Ok(())
     }
 }

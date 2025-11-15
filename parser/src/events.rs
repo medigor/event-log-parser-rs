@@ -1,5 +1,5 @@
 use crate::{
-    parser::{LogStr, Parser},
+    parser::{LogStr, ParseError, ParseResult, Parser},
     references::{Metadata, References, User},
 };
 use chrono::{NaiveDate, NaiveDateTime};
@@ -192,13 +192,17 @@ where
     loop {
         let position = parser.position();
         match parse_record(&mut parser) {
-            Some(event) => action(event),
-            None => return position,
+            Ok(event) => action(event),
+            Err(ParseError::End) => return position,
+            Err(ParseError::InvalidFormat) => match parser.skip_to(b'\r') {
+                Some(_) => (),
+                None => return position,
+            },
         }
     }
 }
 
-fn parse_record<'a>(parser: &'a mut Parser) -> Option<Event<'a>> {
+fn parse_record<'a>(parser: &'a mut Parser) -> ParseResult<Event<'a>> {
     while parser.next()? != b'{' {}
 
     let date = parse_datetime(parser)?;
@@ -221,7 +225,7 @@ fn parse_record<'a>(parser: &'a mut Parser) -> Option<Event<'a>> {
     let unknown1 = parser.parse_usize()?;
     let unknown2 = parser.parse_object()?;
 
-    Some(Event {
+    Ok(Event {
         date,
         transaction_status,
         transaction_data,
@@ -244,9 +248,9 @@ fn parse_record<'a>(parser: &'a mut Parser) -> Option<Event<'a>> {
     })
 }
 
-fn parse_datetime(parser: &mut Parser) -> Option<NaiveDateTime> {
-    fn next2(parser: &mut Parser) -> Option<u32> {
-        Some((parser.next()? - b'0') as u32 * 10 + (parser.next()? - b'0') as u32)
+fn parse_datetime(parser: &mut Parser) -> ParseResult<NaiveDateTime> {
+    fn next2(parser: &mut Parser) -> ParseResult<u32> {
+        Ok((parser.next()? - b'0') as u32 * 10 + (parser.next()? - b'0') as u32)
     }
 
     let year = next2(parser)? * 100 + next2(parser)?;
@@ -255,19 +259,19 @@ fn parse_datetime(parser: &mut Parser) -> Option<NaiveDateTime> {
     let hour = next2(parser)?;
     let min = next2(parser)?;
     let sec = next2(parser)?;
-    parser.skip(1)?;
+    parser.skip(1).ok_or(ParseError::End)?;
 
     let date = NaiveDate::from_ymd_opt(year as i32, month, day)
-        .expect("Invalid file format")
+        .ok_or(ParseError::InvalidFormat)?
         .and_hms_opt(hour, min, sec)
-        .expect("Invalid file format");
-    Some(date)
+        .ok_or(ParseError::InvalidFormat)?;
+    Ok(date)
 }
 
-fn parse_transaction_status(parser: &mut Parser) -> Option<TransactionStatus> {
+fn parse_transaction_status(parser: &mut Parser) -> ParseResult<TransactionStatus> {
     let ch = parser.next()?;
-    parser.skip(1)?;
-    Some(match ch {
+    parser.skip(1).ok_or(ParseError::End)?;
+    Ok(match ch {
         b'R' => TransactionStatus::RolledBack,
         b'N' => TransactionStatus::NotApplicable,
         b'U' => TransactionStatus::Unfinished,
@@ -276,10 +280,10 @@ fn parse_transaction_status(parser: &mut Parser) -> Option<TransactionStatus> {
     })
 }
 
-fn parse_log_level(parser: &mut Parser) -> Option<EventLogLevel> {
+fn parse_log_level(parser: &mut Parser) -> ParseResult<EventLogLevel> {
     let ch = parser.next()?;
-    parser.skip(1)?;
-    Some(match ch {
+    parser.skip(1).ok_or(ParseError::End)?;
+    Ok(match ch {
         b'E' => EventLogLevel::Error,
         b'I' => EventLogLevel::Information,
         b'N' => EventLogLevel::Note,

@@ -1,9 +1,11 @@
+use std::error::Error;
+
 use event_log_parser_1c::{events, references::References};
 
 #[test]
-fn test_files() {
+fn test_files() -> Result<(), Box<dyn Error>> {
     let mut refs = References::default();
-    refs.parse_file("../test-log/1Cv8.lgf").unwrap();
+    refs.parse_file("../test-log/1Cv8.lgf")?;
 
     assert_eq!(refs.users()[2].name(), "Андрей Кудрявцев");
     assert_eq!(refs.computers()[1], "computer1");
@@ -22,17 +24,21 @@ fn test_files() {
             );
         } else if total_events == 24 {
             assert_eq!(event.event(&refs), "Полнотекстовое индексирование");
-            assert!(event
-                .comment()
-                .starts_with("Не удалось проверить состояние индекса полнотекстового поиска"));
-            assert!(event
-                .comment()
-                .contains(r#"Выполнить ИмяМетода + "(" + ПараметрыСтрока + ")";"#));
+            assert!(
+                event
+                    .comment()
+                    .starts_with("Не удалось проверить состояние индекса полнотекстового поиска")
+            );
+            assert!(
+                event
+                    .comment()
+                    .contains(r#"Выполнить ИмяМетода + "(" + ПараметрыСтрока + ")";"#)
+            );
         }
 
         total_events += 1;
-    })
-    .unwrap();
+    })?;
 
     assert_eq!(total_events, 1274);
+    Ok(())
 }
