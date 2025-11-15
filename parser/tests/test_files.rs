@@ -1,6 +1,9 @@
 use std::error::Error;
 
-use event_log_parser_1c::{events, references::References};
+use event_log_parser_1c::{
+    events::{self},
+    references::References,
+};
 
 #[test]
 fn test_files() -> Result<(), Box<dyn Error>> {
@@ -15,15 +18,21 @@ fn test_files() -> Result<(), Box<dyn Error>> {
         let _date = event.date();
 
         if total_events == 11 {
-            assert_eq!(event.user(&refs).name(), "Андрей Кудрявцев");
-            assert_eq!(event.computer(&refs), "computer1");
-            assert_eq!(event.event(&refs), "_$Data$_.Update");
             assert_eq!(
-                event.metadata(&refs).name(),
+                event.user(&refs).map(|x| x.name()).unwrap_or_default(),
+                "Андрей Кудрявцев"
+            );
+            assert_eq!(event.computer(&refs).unwrap_or_default(), "computer1");
+            assert_eq!(event.event(&refs).unwrap_or_default(), "_$Data$_.Update");
+            assert_eq!(
+                event.metadata(&refs).map(|x| x.name()).unwrap_or_default(),
                 "Константа.ИдентификаторИнформационнойБазы"
             );
         } else if total_events == 24 {
-            assert_eq!(event.event(&refs), "Полнотекстовое индексирование");
+            assert_eq!(
+                event.event(&refs).unwrap_or_default(),
+                "Полнотекстовое индексирование"
+            );
             assert!(
                 event
                     .comment()

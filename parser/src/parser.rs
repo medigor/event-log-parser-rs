@@ -23,9 +23,18 @@ impl<'a> LogStr<'a> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct EndError;
+
+#[derive(Debug, PartialEq)]
 pub enum ParseError {
     End,
     InvalidFormat,
+}
+
+impl From<EndError> for ParseError {
+    fn from(_: EndError) -> Self {
+        ParseError::End
+    }
 }
 
 pub type ParseResult<T> = std::result::Result<T, ParseError>;
@@ -53,9 +62,9 @@ impl<'a> Parser<'a> {
         unsafe { self.ptr.offset_from(self.source) as usize }
     }
 
-    pub fn next(&mut self) -> ParseResult<u8> {
+    pub fn next(&mut self) -> Result<u8, EndError> {
         if self.ptr == self.end {
-            Err(ParseError::End)
+            Err(EndError)
         } else {
             let v = unsafe { *self.ptr };
             self.ptr = unsafe { self.ptr.add(1) };
@@ -63,40 +72,38 @@ impl<'a> Parser<'a> {
         }
     }
 
-    pub fn skip(&mut self, count: usize) -> Option<()> {
+    pub fn skip(&mut self, count: usize) -> Result<(), EndError> {
         let new_ptr = unsafe { self.ptr.add(count) };
         if new_ptr > self.end {
-            None
+            Err(EndError)
         } else {
             self.ptr = new_ptr;
-            Some(())
+            Ok(())
         }
     }
 
-    pub fn skip_to(&mut self, ch: u8) -> Option<()> {
+    pub fn skip_to(&mut self, ch: u8) -> Result<(), EndError> {
         let len = unsafe { self.end.offset_from(self.ptr) } as usize;
         let haystack = unsafe { std::slice::from_raw_parts(self.ptr, len) };
-        let i = memchr::memchr(ch, haystack)?;
+        let i = memchr::memchr(ch, haystack).ok_or(EndError)?;
         self.skip(i + 1)
     }
 
-    pub fn skip_to2(&mut self, ch1: u8, ch2: u8) -> Option<()> {
+    pub fn skip_to2(&mut self, ch1: u8, ch2: u8) -> Result<(), EndError> {
         let len = unsafe { self.end.offset_from(self.ptr) } as usize;
         let haystack = unsafe { std::slice::from_raw_parts(self.ptr, len) };
-        let i = memchr::memchr2(ch1, ch2, haystack)?;
+        let i = memchr::memchr2(ch1, ch2, haystack).ok_or(EndError)?;
         self.skip(i + 1)
     }
 
     pub fn current(&self) -> u8 {
-        if self.ptr == self.source {
-            panic!("before need to call next()")
-        }
+        assert_ne!(self.ptr, self.source, "before need to call next()");
         unsafe { *self.ptr.sub(1) }
     }
 
-    pub fn peek(&self) -> ParseResult<u8> {
+    pub fn peek(&self) -> Result<u8, EndError> {
         if self.ptr == self.end {
-            Err(ParseError::End)
+            Err(EndError)
         } else {
             let v = unsafe { *self.ptr };
             Ok(v)
@@ -117,7 +124,7 @@ impl<'a> Parser<'a> {
 
     pub fn parse_raw(&mut self) -> ParseResult<&'a [u8]> {
         let ptr = self.ptr;
-        self.skip_to2(b',', b'}').ok_or(ParseError::End)?;
+        self.skip_to2(b',', b'}')?;
         Ok(unsafe { std::slice::from_raw_parts(ptr, self.ptr.offset_from(ptr) as usize - 1) })
     }
 
@@ -136,7 +143,7 @@ impl<'a> Parser<'a> {
         let mut need_replace_quotes = false;
 
         loop {
-            self.skip_to(b'"').ok_or(ParseError::End)?;
+            self.skip_to(b'"')?;
             let next = self.next()?;
             if next == b',' || next == b'}' {
                 break;
@@ -166,7 +173,7 @@ impl<'a> Parser<'a> {
                 b'{' => {
                     self.parse_object()?;
                 }
-                b'\r' => self.skip(2).ok_or(ParseError::End)?,
+                b'\r' => self.skip(2)?,
                 _ => {
                     self.parse_raw()?;
                 }
@@ -175,7 +182,7 @@ impl<'a> Parser<'a> {
         }
         let mut last = self.next()?;
         if last == b'\r' {
-            self.skip(1).ok_or(ParseError::End)?;
+            self.skip(1)?;
             last = self.next()?;
         }
         if last != b',' && last != b'}' {
@@ -215,7 +222,7 @@ mod tests {
     fn test_parse_error_end() -> ParseResult<()> {
         let buf = b"1111,12345";
         let mut parser = Parser::new(buf);
-        parser.skip(5).ok_or(ParseError::End)?;
+        parser.skip(5)?;
         let r = parser.parse_raw();
         assert_eq!(r, Err(ParseError::End));
         Ok(())

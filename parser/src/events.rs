@@ -60,24 +60,26 @@ impl<'a> Event<'a> {
         self.user_id
     }
 
-    pub fn user<'refs>(&self, refs: &'refs References) -> &'refs User {
-        &refs.users()[self.user_id]
+    pub fn user<'refs>(&self, refs: &'refs References) -> Option<&'refs User> {
+        refs.users().get(self.user_id)
     }
 
     pub fn computer_id(&self) -> usize {
         self.computer_id
     }
 
-    pub fn computer<'refs>(&self, refs: &'refs References) -> &'refs str {
-        &refs.computers()[self.computer_id]
+    pub fn computer<'refs>(&self, refs: &'refs References) -> Option<&'refs str> {
+        refs.computers().get(self.computer_id).map(|x| x.as_str())
     }
 
     pub fn application_id(&self) -> usize {
         self.application_id
     }
 
-    pub fn application<'refs>(&self, refs: &'refs References) -> &'refs str {
-        &refs.applications()[self.application_id]
+    pub fn application<'refs>(&self, refs: &'refs References) -> Option<&'refs str> {
+        refs.applications()
+            .get(self.application_id)
+            .map(|x| x.as_str())
     }
 
     pub fn connection(&self) -> usize {
@@ -88,8 +90,8 @@ impl<'a> Event<'a> {
         self.event_id
     }
 
-    pub fn event<'refs>(&self, refs: &'refs References) -> &'refs str {
-        &refs.events()[self.event_id]
+    pub fn event<'refs>(&self, refs: &'refs References) -> Option<&'refs str> {
+        refs.events().get(self.event_id).map(|s| s.as_str())
     }
 
     pub fn log_level(&self) -> &EventLogLevel {
@@ -104,8 +106,8 @@ impl<'a> Event<'a> {
         self.metadata_id
     }
 
-    pub fn metadata<'refs>(&self, refs: &'refs References) -> &'refs Metadata {
-        &refs.metadata()[self.metadata_id]
+    pub fn metadata<'refs>(&self, refs: &'refs References) -> Option<&'refs Metadata> {
+        refs.metadata().get(self.metadata_id())
     }
 
     pub fn data(&self) -> &str {
@@ -120,24 +122,24 @@ impl<'a> Event<'a> {
         self.worker_server_id
     }
 
-    pub fn worker_server<'refs>(&self, refs: &'refs References) -> &'refs str {
-        &refs.worker_servers()[self.worker_server_id]
+    pub fn worker_server<'refs>(&self, refs: &'refs References) -> Option<&'refs str> {
+        refs.worker_servers().get(self.worker_server_id).map(|x| x.as_str())
     }
 
     pub fn port_id(&self) -> usize {
         self.port_id
     }
 
-    pub fn port(&self, refs: &References) -> u32 {
-        refs.ports()[self.port_id]
+    pub fn port(&self, refs: &References) -> Option<u32> {
+        refs.ports().get(self.port_id).copied()
     }
 
     pub fn sync_port_id(&self) -> usize {
         self.sync_port_id
     }
 
-    pub fn sync_port(&self, refs: &References) -> u32 {
-        refs.sync_ports()[self.sync_port_id]
+    pub fn sync_port(&self, refs: &References) -> Option<u32> {
+        refs.sync_ports().get(self.sync_port_id).copied()
     }
 
     pub fn session(&self) -> usize {
@@ -194,10 +196,11 @@ where
         match parse_record(&mut parser) {
             Ok(event) => action(event),
             Err(ParseError::End) => return position,
-            Err(ParseError::InvalidFormat) => match parser.skip_to(b'\r') {
-                Some(_) => (),
-                None => return position,
-            },
+            Err(ParseError::InvalidFormat) => {
+                if parser.skip_to(b'\r').is_err() {
+                    return position;
+                }
+            }
         }
     }
 }
@@ -259,7 +262,7 @@ fn parse_datetime(parser: &mut Parser) -> ParseResult<NaiveDateTime> {
     let hour = next2(parser)?;
     let min = next2(parser)?;
     let sec = next2(parser)?;
-    parser.skip(1).ok_or(ParseError::End)?;
+    parser.skip(1)?;
 
     let date = NaiveDate::from_ymd_opt(year as i32, month, day)
         .ok_or(ParseError::InvalidFormat)?
@@ -270,24 +273,24 @@ fn parse_datetime(parser: &mut Parser) -> ParseResult<NaiveDateTime> {
 
 fn parse_transaction_status(parser: &mut Parser) -> ParseResult<TransactionStatus> {
     let ch = parser.next()?;
-    parser.skip(1).ok_or(ParseError::End)?;
+    parser.skip(1)?;
     Ok(match ch {
         b'R' => TransactionStatus::RolledBack,
         b'N' => TransactionStatus::NotApplicable,
         b'U' => TransactionStatus::Unfinished,
         b'C' => TransactionStatus::Committed,
-        _ => panic!("Unknown transaction status: {ch}"),
+        _ => return Err(ParseError::InvalidFormat),
     })
 }
 
 fn parse_log_level(parser: &mut Parser) -> ParseResult<EventLogLevel> {
     let ch = parser.next()?;
-    parser.skip(1).ok_or(ParseError::End)?;
+    parser.skip(1)?;
     Ok(match ch {
         b'E' => EventLogLevel::Error,
         b'I' => EventLogLevel::Information,
         b'N' => EventLogLevel::Note,
         b'W' => EventLogLevel::Warning,
-        _ => panic!("Unknown log level: {ch}"),
+        _ => return Err(ParseError::InvalidFormat),
     })
 }

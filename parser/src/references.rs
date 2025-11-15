@@ -105,10 +105,11 @@ impl References {
             match self.parser_record(&mut parser) {
                 Ok(_) => (),
                 Err(ParseError::End) => return position,
-                Err(ParseError::InvalidFormat) => match parser.skip_to(b'\r') {
-                    Some(_) => (),
-                    None => return position,
-                },
+                Err(ParseError::InvalidFormat) => {
+                    if parser.skip_to(b'\r').is_err() {
+                        return position;
+                    }
+                }
             }
         }
     }
@@ -200,7 +201,7 @@ impl References {
                 let _num = parser.parse_usize()?;
                 let _num = parser.parse_usize()?;
             }
-            t => panic!("Unknown reference type: {t}"),
+            _ => (),
         }
         Ok(())
     }
