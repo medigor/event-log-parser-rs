@@ -36,6 +36,7 @@ impl Metadata {
     }
 }
 
+#[cfg(feature = "data-separation")]
 #[derive(Default)]
 pub struct DataSeparation {
     id: Uuid,
@@ -43,6 +44,7 @@ pub struct DataSeparation {
     values: Vec<String>,
 }
 
+#[cfg(feature = "data-separation")]
 impl DataSeparation {
     pub fn id(&self) -> Uuid {
         self.id
@@ -67,6 +69,7 @@ pub struct References {
     worker_servers: Vec<String>,
     ports: Vec<u32>,
     sync_ports: Vec<u32>,
+    #[cfg(feature = "data-separation")]
     data_separation: Vec<DataSeparation>,
 }
 
@@ -176,22 +179,40 @@ impl References {
                 add_ref(&mut self.sync_ports, port, num);
             }
             9 => {
-                let id = parser.parse_uuid()?;
-                let name = parser.parse_str()?.str().to_string();
-                let num = parser.parse_usize()?;
-                let data_separation = DataSeparation {
-                    id,
-                    name,
-                    values: Vec::new(),
-                };
-                add_ref(&mut self.data_separation, data_separation, num);
+                #[cfg(not(feature = "data-separation"))]
+                {
+                    parser.parse_uuid()?;
+                    parser.parse_str()?;
+                    parser.parse_usize()?;
+                }
+                #[cfg(feature = "data-separation")]
+                {
+                    let id = parser.parse_uuid()?;
+                    let name = parser.parse_str()?.str().to_string();
+                    let num = parser.parse_usize()?;
+                    let data_separation = DataSeparation {
+                        id,
+                        name,
+                        values: Vec::new(),
+                    };
+                    add_ref(&mut self.data_separation, data_separation, num);
+                }
             }
             10 => {
-                let obj = parser.parse_object()?.to_string();
-                let ind = parser.parse_usize()?;
-                let num = parser.parse_usize()?;
-                let vec = &mut self.data_separation[ind].values;
-                add_ref(vec, obj, num);
+                #[cfg(not(feature = "data-separation"))]
+                {
+                    parser.parse_object()?;
+                    parser.parse_usize()?;
+                    parser.parse_usize()?;
+                }
+                #[cfg(feature = "data-separation")]
+                {
+                    let obj = parser.parse_object()?.to_string();
+                    let ind = parser.parse_usize()?;
+                    let num = parser.parse_usize()?;
+                    let vec = &mut self.data_separation[ind].values;
+                    add_ref(vec, obj, num);
+                }
             }
             11 | 12 => {
                 let _obj = parser.parse_object()?;

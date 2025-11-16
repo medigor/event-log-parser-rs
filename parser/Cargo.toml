@@ -15,3 +15,6 @@ readme = "README.md"
 uuid = "1.1"
 chrono = "0.4"
 memchr = "2.5"
+
+[features]
+data-separation = []

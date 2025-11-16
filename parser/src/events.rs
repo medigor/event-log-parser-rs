@@ -39,7 +39,9 @@ pub struct Event<'a> {
     port_id: usize,
     sync_port_id: usize,
     session: usize,
+    #[cfg(feature = "data-separation")]
     unknown1: usize,
+    #[cfg(feature = "data-separation")]
     unknown2: &'a str,
 }
 
@@ -146,10 +148,12 @@ impl<'a> Event<'a> {
         self.session
     }
 
+    #[cfg(feature = "data-separation")]
     pub fn unknown1(&self) -> usize {
         self.unknown1
     }
 
+    #[cfg(feature = "data-separation")]
     pub fn unknown2(&self) -> &str {
         self.unknown2
     }
@@ -225,7 +229,9 @@ fn parse_record<'a>(parser: &'a mut Parser) -> ParseResult<Event<'a>> {
     let port_id = parser.parse_usize()?;
     let sync_port_id = parser.parse_usize()?;
     let session = parser.parse_usize()?;
+    #[allow(unused_variables)]
     let unknown1 = parser.parse_usize()?;
+    #[allow(unused_variables)]
     let unknown2 = parser.parse_object()?;
 
     Ok(Event {
@@ -246,7 +252,9 @@ fn parse_record<'a>(parser: &'a mut Parser) -> ParseResult<Event<'a>> {
         port_id,
         sync_port_id,
         session,
+        #[cfg(feature = "data-separation")]
         unknown1,
+        #[cfg(feature = "data-separation")]
         unknown2,
     })
 }
