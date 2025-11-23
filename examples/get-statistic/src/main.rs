@@ -21,21 +21,21 @@ fn main() -> io::Result<()> {
     let mut refs = References::default();
     refs.parse_file(Path::new(&dir_name).join("1Cv8.lgf"))?;
 
-    let session_start_id = *refs
+    let session_start_id = refs
         .events()
         .iter()
         .position(|x| x == "_$Session$_.Start")
-        .get_or_insert(0);
-    let data_new_id = *refs
+        .unwrap_or(0);
+    let data_new_id = refs
         .events()
         .iter()
         .position(|x| x == "_$Data$_.New")
-        .get_or_insert(0);
-    let data_update_id = *refs
+        .unwrap_or(0);
+    let data_update_id = refs
         .events()
         .iter()
         .position(|x| x == "_$Data$_.Update")
-        .get_or_insert(0);
+        .unwrap_or(0);
 
     let mut total_events = 0;
     let mut total_log_size = 0;
